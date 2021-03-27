@@ -775,14 +775,51 @@ void __init cpuhp_threads_init(void)
 	kthread_unpark(this_cpu_read(cpuhp_state.thread));
 }
 
-#if !defined(CONFIG_SEC_FACTORY)
-#include <soc/qcom/watchdog.h>
-static void cpu_hotplug_timer_function(unsigned long data) {
-	pr_err("[%s] cpu_%s took longer than 5 secs\n", __func__, (data == 1)?"up":"down");
-	msm_trigger_wdog_bite();
-};
-static DEFINE_TIMER(cpu_hp_timer, cpu_hotplug_timer_function, 0, 0);
-#endif
+/*
+ *
+ * Serialize hotplug trainwrecks outside of the cpu_hotplug_lock
+ * protected region.
+ *
+ * The operation is still serialized against concurrent CPU hotplug via
+ * cpu_add_remove_lock, i.e. CPU map protection.  But it is _not_
+ * serialized against other hotplug related activity like adding or
+ * removing of state callbacks and state instances, which invoke either the
+ * startup or the teardown callback of the affected state.
+ *
+ * This is required for subsystems which are unfixable vs. CPU hotplug and
+ * evade lock inversion problems by scheduling work which has to be
+ * completed _before_ cpu_up()/_cpu_down() returns.
+ *
+ * Don't even think about adding anything to this for any new code or even
+ * drivers. It's only purpose is to keep existing lock order trainwrecks
+ * working.
+ *
+ * For cpu_down() there might be valid reasons to finish cleanups which are
+ * not required to be done under cpu_hotplug_lock, but that's a different
+ * story and would be not invoked via this.
+ */
+static void cpu_up_down_serialize_trainwrecks(bool tasks_frozen)
+{
+	/*
+	 * cpusets delegate hotplug operations to a worker to "solve" the
+	 * lock order problems. Wait for the worker, but only if tasks are
+	 * _not_ frozen (suspend, hibernate) as that would wait forever.
+	 *
+	 * The wait is required because otherwise the hotplug operation
+	 * returns with inconsistent state, which could even be observed in
+	 * user space when a new CPU is brought up. The CPU plug uevent
+	 * would be delivered and user space reacting on it would fail to
+	 * move tasks to the newly plugged CPU up to the point where the
+	 * work has finished because up to that point the newly plugged CPU
+	 * is not assignable in cpusets/cgroups. On unplug that's not
+	 * necessarily a visible issue, but it is still inconsistent state,
+	 * which is the real problem which needs to be "fixed". This can't
+	 * prevent the transient state between scheduling the work and
+	 * returning from waiting for it.
+	 */
+	if (!tasks_frozen)
+		cpuset_wait_for_hotplug();
+}
 
 #ifdef CONFIG_HOTPLUG_CPU
 #ifndef arch_clear_mm_cpumask_cpu
@@ -1032,6 +1069,7 @@ out:
 	 */
 	lockup_detector_cleanup();
 	arch_smt_update();
+	cpu_up_down_serialize_trainwrecks(tasks_frozen);
 	return ret;
 }
 
@@ -1066,19 +1104,7 @@ static int do_cpu_down(unsigned int cpu, enum cpuhp_state target)
 
 int cpu_down(unsigned int cpu)
 {
-#if !defined(CONFIG_SEC_FACTORY)
-	int ret;
-	cpu_hp_timer.expires = jiffies+5*HZ;
-	cpu_hp_timer.data = 0;
-
-	add_timer(&cpu_hp_timer);
-	ret = do_cpu_down(cpu, CPUHP_OFFLINE);
-	del_timer_sync(&cpu_hp_timer);
-
-	return ret;
-#else
     return do_cpu_down(cpu, CPUHP_OFFLINE);
-#endif
 }
 EXPORT_SYMBOL(cpu_down);
 
@@ -1195,6 +1221,7 @@ out:
 	trace_cpuhp_latency(cpu, 1, start_time, ret);
 	cpus_write_unlock();
 	arch_smt_update();
+	cpu_up_down_serialize_trainwrecks(tasks_frozen);
 	return ret;
 }
 
@@ -1276,19 +1303,7 @@ out:
 
 int cpu_up(unsigned int cpu)
 {
-#if !defined(CONFIG_SEC_FACTORY)	
-	int ret = 0;
-	cpu_hp_timer.expires = jiffies + 5*HZ;
-	cpu_hp_timer.data = 1;
-
-	add_timer(&cpu_hp_timer);
-	ret = do_cpu_up(cpu, CPUHP_ONLINE);
-	del_timer_sync(&cpu_hp_timer);
-	
-	return ret;
-#else
-	return do_cpu_up(cpu, CPUHP_ONLINE);
-#endif	
+	return do_cpu_up(cpu, CPUHP_ONLINE);	
 }
 EXPORT_SYMBOL_GPL(cpu_up);
 
