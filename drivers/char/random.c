@@ -1148,6 +1148,50 @@ struct timer_rand_state {
 };
 
 #define INIT_TIMER_RAND_STATE { INITIAL_JIFFIES, };
+/*
+ * The first collection of entropy occurs at system boot while interrupts
+ * are still turned off. Here we push in RDSEED, a timestamp, and utsname().
+ * Depending on the above configuration knob, RDSEED may be considered
+ * sufficient for initialization. Note that much earlier setup may already
+ * have pushed entropy into the input pool by the time we get here.
+ */
+int __init rand_initialize(void)
+{
+	size_t i;
+	ktime_t now = ktime_get_real();
+	bool arch_init = true;
+	unsigned long rv;
+
+#if defined(LATENT_ENTROPY_PLUGIN)
+	static const u8 compiletime_seed[BLAKE2S_BLOCK_SIZE] __initconst __latent_entropy;
+	_mix_pool_bytes(compiletime_seed, sizeof(compiletime_seed));
+#endif
+
+	for (i = 0; i < BLAKE2S_BLOCK_SIZE; i += sizeof(rv)) {
+		if (!arch_get_random_seed_long_early(&rv) &&
+		    !arch_get_random_long_early(&rv)) {
+			rv = random_get_entropy();
+			arch_init = false;
+		}
+		_mix_pool_bytes(&rv, sizeof(rv));
+	}
+	_mix_pool_bytes(&now, sizeof(now));
+	_mix_pool_bytes(utsname(), sizeof(*(utsname())));
+
+	extract_entropy(base_crng.key, sizeof(base_crng.key));
+	++base_crng.generation;
+
+	if (arch_init && trust_cpu && !crng_ready()) {
+		crng_init = 2;
+		pr_notice("crng init done (trusting CPU's manufacturer)\n");
+	}
+
+	if (ratelimit_disable) {
+		urandom_warning.interval = 0;
+		unseeded_warning.interval = 0;
+	}
+	return 0;
+}
 
 /*
  * Add device- or boot-specific data to the input pool to help
