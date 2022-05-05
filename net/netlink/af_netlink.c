@@ -1969,15 +1969,6 @@ static int netlink_recvmsg(struct socket *sock, struct msghdr *msg, size_t len,
 		copied = len;
 	}
 
-	skb_reset_transport_header(data_skb);
-    if (sock->sk->sk_protocol ==  NETLINK_GENERIC &&
-		((struct genlmsghdr *)(nlmsg_data((struct nlmsghdr*)skb->data)))->cmd == CTRL_CMD_NEWFAMILY)
-    {
-    	pr_err("%s(%d) skb: %p copy dgram pid:%u comm:%s sk: %p\n",
-			__func__, __LINE__,
-			data_skb, task_pid_nr(current),
-			current->comm, sk);
-    }	
 	err = skb_copy_datagram_msg(data_skb, 0, msg, copied);
 
 	if (msg->msg_name) {
