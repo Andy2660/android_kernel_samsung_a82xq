@@ -53,7 +53,11 @@
 #include <linux/uaccess.h>
 #include <linux/siphash.h>
 #include <linux/uio.h>
+<<<<<<< HEAD
 #include <crypto/chacha.h>
+=======
+#include <crypto/chacha20.h>
+>>>>>>> 225c0df138c2 (random: move randomize_page() into mm where it belongs)
 #include <crypto/blake2s.h>
 #include <asm/processor.h>
 #include <asm/irq.h>
@@ -1380,7 +1384,11 @@ static int random_fasync(int fd, struct file *filp, int on)
 
 const struct file_operations random_fops = {
 	.read_iter = random_read_iter,
+<<<<<<< HEAD
 	.write_iter = random_write_iter,
+=======
+	.write = random_write,
+>>>>>>> 225c0df138c2 (random: move randomize_page() into mm where it belongs)
 	.poll = random_poll,
 	.unlocked_ioctl = random_ioctl,
 	.fasync = random_fasync,
@@ -1391,7 +1399,11 @@ const struct file_operations random_fops = {
 
 const struct file_operations urandom_fops = {
 	.read_iter = urandom_read_iter,
+<<<<<<< HEAD
 	.write_iter = random_write_iter,
+=======
+	.write = random_write,
+>>>>>>> 225c0df138c2 (random: move randomize_page() into mm where it belongs)
 	.unlocked_ioctl = random_ioctl,
 	.fasync = random_fasync,
 	.llseek = noop_llseek,
