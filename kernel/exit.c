@@ -68,12 +68,32 @@
 #include <asm/pgtable.h>
 #include <asm/mmu_context.h>
 
-#ifdef CONFIG_SECURITY_DEFEX
-#include <linux/defex.h>
-#endif
+/*
+ * The default value should be high enough to not crash a system that randomly
+ * crashes its kernel from time to time, but low enough to at least not permit
+ * overflowing 32-bit refcounts or the ldsem writer count.
+ */
+static unsigned int oops_limit = 10000;
 
-#ifdef CONFIG_SEC_DEBUG
-#include <linux/sec_debug.h>
+#ifdef CONFIG_SYSCTL
+static struct ctl_table kern_exit_table[] = {
+	{
+		.procname       = "oops_limit",
+		.data           = &oops_limit,
+		.maxlen         = sizeof(oops_limit),
+		.mode           = 0644,
+		.proc_handler   = proc_douintvec,
+	},
+	{ }
+};
+
+static __init int kernel_exit_sysctls_init(void)
+{
+	register_sysctl_init("kernel", kern_exit_table);
+	return 0;
+}
+late_initcall(kernel_exit_sysctls_init);
+>>>>>>> 53aca559a2a5 (exit: Put an upper limit on how often we can oops)
 #endif
 
 static void __unhash_process(struct task_struct *p, bool group_dead)
@@ -793,10 +813,6 @@ void __noreturn do_exit(long code)
 	struct task_struct *reaper;
 	int group_dead;
 
-#ifdef CONFIG_SECURITY_DEFEX
-	task_defex_zero_creds(current);
-#endif
-
 	/*
 	 * We can get here from a kernel oops, sometimes with preemption off.
 	 * Start by checking for critical errors.
@@ -881,26 +897,6 @@ void __noreturn do_exit(long code)
 	tsk->exit_code = code;
 	taskstats_exit(tsk, group_dead);
 
-#ifdef CONFIG_SEC_DEBUG
-	if (sec_debug_is_enabled()) {
-		write_lock_irq(&tasklist_lock);
-		pid_ns = task_active_pid_ns(tsk);
-		if (unlikely(pid_ns == &init_pid_ns)) {
-			reaper = pid_ns->child_reaper;
-			if (unlikely(reaper == tsk)) {
-				reaper = find_alive_thread(tsk);
-				if (unlikely(!reaper)) {
-					write_unlock_irq(&tasklist_lock);
-					panic("Attempted to kill init! exitcode=0x%08x\n",
-						tsk->signal->group_exit_code ?: tsk->exit_code);
-					write_lock_irq(&tasklist_lock);
-				}
-			}
-		}
-		write_unlock_irq(&tasklist_lock);
-	}
-#endif
-
 	exit_mm();
 
 	if (group_dead)
@@ -971,10 +967,26 @@ EXPORT_SYMBOL_GPL(do_exit);
 
 void __noreturn make_task_dead(int signr)
 {
+	static atomic_t oops_count = ATOMIC_INIT(0);
+
 	/*
 	 * Take the task off the cpu after something catastrophic has
 	 * happened.
 	 */
+
+	/*
+	 * Every time the system oopses, if the oops happens while a reference
+	 * to an object was held, the reference leaks.
+	 * If the oops doesn't also leak memory, repeated oopsing can cause
+	 * reference counters to wrap around (if they're not using refcount_t).
+	 * This means that repeated oopsing can make unexploitable-looking bugs
+	 * exploitable through repeated oopsing.
+	 * To make sure this can't happen, place an upper bound on how often the
+	 * kernel may oops without panic().
+	 */
+	if (atomic_inc_return(&oops_count) >= READ_ONCE(oops_limit))
+		panic("Oopsed too often (kernel.oops_limit is %d)", oops_limit);
+
 	do_exit(signr);
 }
 
