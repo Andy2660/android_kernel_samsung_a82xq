@@ -120,9 +120,6 @@
 #include <linux/mroute.h>
 #endif
 #include <net/l3mdev.h>
-#ifdef CONFIG_NET_ANALYTICS
-#include <net/analytics.h>
-#endif
 
 int sysctl_reserved_port_bind __read_mostly = 1;
 
@@ -754,26 +751,19 @@ EXPORT_SYMBOL(inet_getname);
 int inet_sendmsg(struct socket *sock, struct msghdr *msg, size_t size)
 {
 	struct sock *sk = sock->sk;
-#ifdef CONFIG_NET_ANALYTICS
-	int err;
-#endif
+	const struct proto *prot;
 
 	sock_rps_record_flow(sk);
 
+	/* IPV6_ADDRFORM can change sk->sk_prot under us. */
+	prot = READ_ONCE(sk->sk_prot);
+
 	/* We may need to bind the socket. */
-	if (!inet_sk(sk)->inet_num && !sk->sk_prot->no_autobind &&
+	if (!inet_sk(sk)->inet_num && !prot->no_autobind &&
 	    inet_autobind(sk))
 		return -EAGAIN;
 
-#ifdef CONFIG_NET_ANALYTICS
-	err = sk->sk_prot->sendmsg(sk, msg, size);
-	if (err > 0)
-		net_usr_tx(sk, err);
-
-	return err;
-#else
-	return sk->sk_prot->sendmsg(sk, msg, size);
-#endif
+	return prot->sendmsg(sk, msg, size);
 }
 EXPORT_SYMBOL(inet_sendmsg);
 
@@ -799,21 +789,18 @@ int inet_recvmsg(struct socket *sock, struct msghdr *msg, size_t size,
 		 int flags)
 {
 	struct sock *sk = sock->sk;
+	const struct proto *prot;
 	int addr_len = 0;
 	int err;
 
 	sock_rps_record_flow(sk);
 
-	err = sk->sk_prot->recvmsg(sk, msg, size, flags & MSG_DONTWAIT,
-				   flags & ~MSG_DONTWAIT, &addr_len);
+	/* IPV6_ADDRFORM can change sk->sk_prot under us. */
+	prot = READ_ONCE(sk->sk_prot);
+	err = prot->recvmsg(sk, msg, size, flags & MSG_DONTWAIT,
+			    flags & ~MSG_DONTWAIT, &addr_len);
 	if (err >= 0)
 		msg->msg_namelen = addr_len;
-
-#ifdef CONFIG_NET_ANALYTICS
-	if (err > 0)
-		net_usr_rx(sk, err);
-#endif
-
 	return err;
 }
 EXPORT_SYMBOL(inet_recvmsg);
