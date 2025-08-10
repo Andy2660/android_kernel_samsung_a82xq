@@ -7,6 +7,7 @@ arch/arm64/configs/a82xq_kor_skt_defconfig
 수정됨
 
 toolchain
+
 https://github.com/ravindu644/Android-Kernel-Tutorials/releases/download/toolchains/clang-r383902b.tar.gz
 
 ( clang-r383902b)
