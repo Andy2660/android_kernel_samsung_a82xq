@@ -1,1 +1,7 @@
-# android_kernel_samsung_a82xq
+Makefile
+
+a82xq_kor_skt_defconfig
+
+/drivers/platform/msm/gsi/gsi.c
+
+수정됨
