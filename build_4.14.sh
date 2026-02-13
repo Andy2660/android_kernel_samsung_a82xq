@@ -38,7 +38,7 @@ build_kernel(){
     make "${BUILD_OPTIONS[@]}" mrproper
     
     # your defconfig
-    make "${BUILD_OPTIONS[@]}" a82xq_kor_skt_defconfig #KernelProtection.config
+    make "${BUILD_OPTIONS[@]}" a82xq_RKSU_defconfig
 
     # Configure the kernel (GUI)
     make "${BUILD_OPTIONS[@]}" menuconfig
