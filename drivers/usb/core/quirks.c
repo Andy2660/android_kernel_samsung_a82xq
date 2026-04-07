@@ -327,10 +327,6 @@ static const struct usb_device_id usb_quirk_list[] = {
 	/* novation SoundControl XL */
 	{ USB_DEVICE(0x1235, 0x0061), .driver_info = USB_QUIRK_RESET_RESUME },
 
-	/* VIA 3.0 HUB (MPA HUB) */
-	{ USB_DEVICE(0x2109, 0x0817),
-		.driver_info = USB_QUIRK_NO_LPM | USB_QUIRK_HUB_NO_SUSPEND },
-
 	/* Realtek r8153 Lan dongle */
 	{ USB_DEVICE(0x0bda, 0x8153), .driver_info = USB_QUIRK_NO_LPM },
 
