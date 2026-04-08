@@ -219,11 +219,7 @@ static int usb_string_copy(const char *s, char **s_copy)
 		if (!str)
 			return -ENOMEM;
 	}
-<<<<<<< HEAD
-	strlcpy(str, s);
-=======
 	strcpy(str, s);
->>>>>>> 27b028b9c373 (usb: gadget: configfs: Fix KASAN use-after-free)
 	if (str[ret - 1] == '\n')
 		str[ret - 1] = '\0';
 	*s_copy = str;
