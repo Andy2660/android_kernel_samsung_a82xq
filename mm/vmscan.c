@@ -2660,65 +2660,6 @@ out:
 	}
 }
 
-#ifdef CONFIG_MEMCG_HEIMDALL
-void forced_shrink_node_memcg(struct pglist_data *pgdat, struct mem_cgroup *memcg,
-			      int type, unsigned long nr_requested)
-{
-	struct lruvec *lruvec = mem_cgroup_lruvec(pgdat, memcg);
-	unsigned long nr[NR_LRU_LISTS] = {0,};
-	unsigned long nr_to_scan;
-	enum lru_list lru;
-	unsigned long nr_reclaimed = 0;
-	struct blk_plug plug;
-	unsigned long anon = 0, file = 0;
-	struct scan_control sc = {
-		.nr_to_reclaim = SWAP_CLUSTER_MAX,
-		.gfp_mask = GFP_KERNEL,
-		.reclaim_idx = MAX_NR_ZONES - 1,
-		.target_mem_cgroup = memcg,
-		.priority = DEF_PRIORITY,
-		.may_writepage = !laptop_mode,
-		.may_unmap = 1,
-		.may_swap = 1,
-	};
-
-	if (type == MEMCG_HEIMDALL_SHRINK_ANON) {
-		anon  = lruvec_lru_size(lruvec, LRU_ACTIVE_ANON, MAX_NR_ZONES) +
-			lruvec_lru_size(lruvec, LRU_INACTIVE_ANON, MAX_NR_ZONES);
-		nr[LRU_ACTIVE_ANON] = nr[LRU_INACTIVE_ANON] = anon;
-		nr[LRU_ACTIVE_FILE] = nr[LRU_INACTIVE_FILE] = 0;
-	} else if (type == MEMCG_HEIMDALL_SHRINK_FILE) {
-		file  = lruvec_lru_size(lruvec, LRU_ACTIVE_FILE, MAX_NR_ZONES) +
-			lruvec_lru_size(lruvec, LRU_INACTIVE_FILE, MAX_NR_ZONES);
-		nr[LRU_ACTIVE_ANON] = nr[LRU_INACTIVE_ANON] = 0;
-		nr[LRU_ACTIVE_FILE] = nr[LRU_INACTIVE_FILE] = file;
-	}
-
-	trace_printk("%s heimdall start %d %lu %lu %lu\n", __func__, type, nr_requested, anon, file);
-	blk_start_plug(&plug);
-	while (nr[LRU_INACTIVE_ANON] > 0 || nr[LRU_INACTIVE_FILE] > 0) {
-		for_each_evictable_lru(lru) {
-			if (nr[lru]) {
-				nr_to_scan = min(nr[lru], SWAP_CLUSTER_MAX);
-				nr[lru] -= nr_to_scan;
-
-				nr_reclaimed += shrink_list(lru, nr_to_scan,
-							    lruvec, &sc);
-			}
-		}
-
-		if (nr_reclaimed >= nr_requested)
-			break;
-
-		cond_resched();
-	}
-	blk_finish_plug(&plug);
-	sc.nr_reclaimed += nr_reclaimed;
-	trace_printk("%s end %d %lu %lu %lu\n", __func__, type, nr_reclaimed,
-		nr[LRU_INACTIVE_ANON], nr[LRU_INACTIVE_FILE]);
-}
-#endif
-
 /*
  * This is a basic per-node page freer.  Used by both kswapd and direct reclaim.
  */
