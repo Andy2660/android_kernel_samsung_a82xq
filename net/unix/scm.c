@@ -51,20 +51,13 @@ void unix_inflight(struct user_struct *user, struct file *fp)
 	if (s) {
 		struct unix_sock *u = unix_sk(s);
 
-<<<<<<< HEAD
 		if (!u->inflight) {
-=======
-		if (atomic_long_inc_return(&u->inflight) == 1) {
->>>>>>> eee65a128236 (net: split out functions related to registering inflight socket files)
 			BUG_ON(!list_empty(&u->link));
 			list_add_tail(&u->link, &gc_inflight_list);
 		} else {
 			BUG_ON(list_empty(&u->link));
 		}
-<<<<<<< HEAD
 		u->inflight++;
-=======
->>>>>>> eee65a128236 (net: split out functions related to registering inflight socket files)
 		unix_tot_inflight++;
 	}
 	user->unix_inflight++;
@@ -80,18 +73,11 @@ void unix_notinflight(struct user_struct *user, struct file *fp)
 	if (s) {
 		struct unix_sock *u = unix_sk(s);
 
-<<<<<<< HEAD
 		BUG_ON(!u->inflight);
 		BUG_ON(list_empty(&u->link));
 
 		u->inflight--;
 		if (!u->inflight)
-=======
-		BUG_ON(!atomic_long_read(&u->inflight));
-		BUG_ON(list_empty(&u->link));
-
-		if (atomic_long_dec_and_test(&u->inflight))
->>>>>>> eee65a128236 (net: split out functions related to registering inflight socket files)
 			list_del_init(&u->link);
 		unix_tot_inflight--;
 	}
