@@ -43,10 +43,6 @@
 #include <linux/tracehook.h>
 #include <linux/uaccess.h>
 
-#ifdef CONFIG_LOD_SEC
-#include <linux/linux_on_dex.h>
-#endif
-
 /**
  * struct seccomp_filter - container for seccomp BPF programs
  *
