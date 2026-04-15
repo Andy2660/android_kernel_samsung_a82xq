@@ -435,18 +435,6 @@ static int xhci_plat_remove(struct platform_device *dev)
 	struct usb_hcd *shared_hcd = xhci->shared_hcd;
 
 	pm_runtime_get_sync(&dev->dev);
-#if defined(CONFIG_USB_HOST_SAMSUNG_FEATURE)
-		/* In order to prevent kernel panic */
-		if (!pm_runtime_suspended(&xhci->shared_hcd->self.root_hub->dev)) {
-			pr_info("%s, shared_hcd pm_runtime_forbid\n", __func__);
-			pm_runtime_forbid(&xhci->shared_hcd->self.root_hub->dev);
-		}
-		if (!pm_runtime_suspended(&xhci->main_hcd->self.root_hub->dev)) {
-			pr_info("%s, main_hcd pm_runtime_forbid\n", __func__);
-			pm_runtime_forbid(&xhci->main_hcd->self.root_hub->dev);
-		}
-#endif
-
 	xhci->xhc_state |= XHCI_STATE_REMOVING;
 
 	device_remove_file(&dev->dev, &dev_attr_config_imod);

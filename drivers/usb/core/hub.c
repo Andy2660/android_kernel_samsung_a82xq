@@ -5309,16 +5309,7 @@ static void port_event(struct usb_hub *hub, int port1)
 		} else {
 			usb_unlock_port(port_dev);
 			usb_lock_device(udev);
-#if defined(CONFIG_USB_HOST_SAMSUNG_FEATURE)
-			if (le16_to_cpu(udev->descriptor.idVendor) == 0x2109 &&
-				le16_to_cpu(udev->descriptor.idProduct) == 0x0817) {
-				dev_dbg(&port_dev->dev, "intentional disconnection 2 for mpa2\n");
-				hub_port_logical_disconnect(hub, port1);
-			} else
-				usb_reset_device(udev);
-#else
 			usb_reset_device(udev);
-#endif
 			usb_unlock_device(udev);
 			usb_lock_port(port_dev);
 			connect_change = 0;

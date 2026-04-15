@@ -92,7 +92,7 @@ int xhci_handshake(void __iomem *ptr, u32 mask, u32 done, u64 timeout_us)
 }
 
 int xhci_handshake_check_state(struct xhci_hcd *xhci,
-		void __iomem *ptr, u32 mask, u32 done, int usec)
+		void __iomem *ptr, u32 mask, u32 done, u64 timeout_us)
 {
 	u32	result;
 
@@ -100,17 +100,15 @@ int xhci_handshake_check_state(struct xhci_hcd *xhci,
 		result = readl_relaxed(ptr);
 		if (result == ~(u32)0)	/* card removed */
 			return -ENODEV;
-#if !defined(CONFIG_USB_HOST_SAMSUNG_FEATURE)
 		/* host removed. Bail out */
 		if (xhci->xhc_state & XHCI_STATE_REMOVING)
 			return -ENODEV;
-#endif
 		result &= mask;
 		if (result == done)
 			return 0;
 		udelay(1);
-		usec--;
-	} while (usec > 0);
+		timeout_us--;
+	} while (timeout_us > 0);
 	return -ETIMEDOUT;
 }
 
