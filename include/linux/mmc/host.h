@@ -516,6 +516,7 @@ struct mmc_host {
 #define MMC_CAP2_HS200_1_2V_SDR (1 << 6)        /* can support */
 #define MMC_CAP2_HS200		(MMC_CAP2_HS200_1_8V_SDR | \
 				MMC_CAP2_HS200_1_2V_SDR)
+#define MMC_CAP2_BKOPS_EN       (1 << 7)        /* Bkops enable */
 #define MMC_CAP2_DETECT_ON_ERR  (1 << 8)        /* On I/O err check card removal */
 #define MMC_CAP2_HC_ERASE_SZ    (1 << 9)        /* High-capacity erase size */
 #define MMC_CAP2_CD_ACTIVE_HIGH (1 << 10)       /* Card-detect signal active high */
@@ -691,7 +692,10 @@ struct mmc_host {
 #endif
 
 	bool sdr104_wa;
-
+	unsigned int            card_detect_cnt;
+#if defined(CONFIG_SEC_ABC)
+	unsigned int            card_removed_cnt;
+#endif
 	/*
 	 * Set to 1 to just stop the SDCLK to the card without
 	 * actually disabling the clock from it's source.
@@ -726,15 +730,13 @@ struct mmc_host {
 	 */
 	void *cmdq_private;
 	struct mmc_request	*err_mrq;
-
+	int (*sdcard_uevent)(struct mmc_card *card);
 	bool inlinecrypt_support;  /* Inline encryption support */
 	bool inlinecrypt_reset_needed;  /* Inline crypto reset */
 
 	atomic_t rpmb_req_pending;
 	struct mutex		rpmb_req_mutex;
 	bool crash_on_err;	/* crash the system on error */
-	unsigned int		card_detect_cnt;
-	int (*sdcard_uevent)(struct mmc_card *card);
 	unsigned long		private[0] ____cacheline_aligned;
 };
 
@@ -923,6 +925,26 @@ static inline int mmc_card_uhs(struct mmc_card *card)
 {
 	return card->host->ios.timing >= MMC_TIMING_UHS_SDR12 &&
 		card->host->ios.timing <= MMC_TIMING_UHS_DDR50;
+}
+
+static inline bool mmc_card_hs200(struct mmc_card *card)
+{
+	return card->host->ios.timing == MMC_TIMING_MMC_HS200;
+}
+
+static inline bool mmc_card_ddr52(struct mmc_card *card)
+{
+	return card->host->ios.timing == MMC_TIMING_MMC_DDR52;
+}
+
+static inline bool mmc_card_hs400(struct mmc_card *card)
+{
+	return card->host->ios.timing == MMC_TIMING_MMC_HS400;
+}
+
+static inline bool mmc_card_hs400es(struct mmc_card *card)
+{
+	return card->host->ios.enhanced_strobe;
 }
 
 void mmc_retune_enable(struct mmc_host *host);

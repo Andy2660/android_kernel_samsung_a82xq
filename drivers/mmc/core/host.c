@@ -199,6 +199,7 @@ void mmc_host_clk_hold(struct mmc_host *host)
 	spin_unlock_irqrestore(&host->clk_lock, flags);
 	mutex_unlock(&host->clk_gate_mutex);
 }
+EXPORT_SYMBOL(mmc_host_clk_hold);
 
 /**
  *	mmc_host_may_gate_card - check if this card may be gated
@@ -248,6 +249,7 @@ void mmc_host_clk_release(struct mmc_host *host)
 				      msecs_to_jiffies(host->clkgate_delay));
 	spin_unlock_irqrestore(&host->clk_lock, flags);
 }
+EXPORT_SYMBOL(mmc_host_clk_release);
 
 /**
  *	mmc_host_clk_rate - get current clock frequency setting
@@ -392,13 +394,12 @@ EXPORT_SYMBOL(mmc_retune_enable);
 
 /*
  * Pause re-tuning for a small set of operations.  The pause begins after the
- * next command and after first doing re-tuning.
+ * next command.
  */
 void mmc_retune_pause(struct mmc_host *host)
 {
 	if (!host->retune_paused) {
 		host->retune_paused = 1;
-		mmc_retune_needed(host);
 		mmc_retune_hold(host);
 	}
 }
@@ -1073,6 +1074,7 @@ EXPORT_SYMBOL(mmc_remove_host);
  */
 void mmc_free_host(struct mmc_host *host)
 {
+	cancel_delayed_work_sync(&host->detect);
 	mmc_crypto_free_host(host);
 	mmc_pwrseq_free(host);
 	wake_lock_destroy(&host->detect_wake_lock);
