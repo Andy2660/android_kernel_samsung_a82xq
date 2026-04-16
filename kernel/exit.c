@@ -94,7 +94,6 @@ static __init int kernel_exit_sysctls_init(void)
 	return 0;
 }
 late_initcall(kernel_exit_sysctls_init);
->>>>>>> 53aca559a2a5 (exit: Put an upper limit on how often we can oops)
 #endif
 
 static atomic_t oops_count = ATOMIC_INIT(0);
