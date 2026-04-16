@@ -828,8 +828,6 @@ static inline void check_stack_usage(void) {}
 void __noreturn do_exit(long code)
 {
 	struct task_struct *tsk = current;
-	struct pid_namespace *pid_ns;
-	struct task_struct *reaper;
 	int group_dead;
 
 	/*
