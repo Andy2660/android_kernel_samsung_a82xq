@@ -157,29 +157,10 @@ static ssize_t sel_write_enforce(struct file *file, const char __user *buf,
 	if (sscanf(page, "%d", &new_value) != 1)
 		goto out;
 
-// [ SEC_SELINUX_PORTING_COMMON
-#ifdef CONFIG_ALWAYS_ENFORCE
-	// If build is user build and enforce option is set, selinux is always enforcing
-	new_value = 1;
-	length = avc_has_perm(current_sid(), SECINITSID_SECURITY,
-			      SECCLASS_SECURITY, SECURITY__SETENFORCE,
-			      NULL);
-	audit_log(current->audit_context, GFP_KERNEL, AUDIT_MAC_STATUS,
-		"config_always_enforce - true; enforcing=%d old_enforcing=%d auid=%u ses=%u",
-		new_value, selinux_enforcing,
-		from_kuid(&init_user_ns, audit_get_loginuid(current)),
-		audit_get_sessionid(current));
-#if !defined(CONFIG_RKP_KDP)
-	selinux_enforcing = new_value;
-#endif
-	avc_ss_reset(0);
-	selnl_notify_setenforce(new_value);
-	selinux_status_update_setenforce(new_value);
-#else
 	new_value = !!new_value;
 
 	old_value = enforcing_enabled(state);
-	if (new_value != selinux_enforcing) { // SEC_SELINUX_PORTING_COMMON Change to use RKP 
+	if (new_value != old_value) {
 		length = avc_has_perm(&selinux_state,
 				      current_sid(), SECINITSID_SECURITY,
 				      SECCLASS_SECURITY, SECURITY__SETENFORCE,
@@ -188,7 +169,7 @@ static ssize_t sel_write_enforce(struct file *file, const char __user *buf,
 			goto out;
 		audit_log(current->audit_context, GFP_KERNEL, AUDIT_MAC_STATUS,
 			"enforcing=%d old_enforcing=%d auid=%u ses=%u",
-			new_value, selinux_enforcing,
+			new_value, old_value,
 			from_kuid(&init_user_ns, audit_get_loginuid(current)),
 			audit_get_sessionid(current));
 		enforcing_set(state, new_value);
@@ -199,8 +180,6 @@ static ssize_t sel_write_enforce(struct file *file, const char __user *buf,
 		if (!new_value)
 			call_lsm_notifier(LSM_POLICY_CHANGE, NULL);
 	}
-#endif
-// ] SEC_SELINUX_PORTING_COMMON
 	length = count;
 out:
 	kfree(page);
@@ -565,15 +544,23 @@ static ssize_t sel_write_load(struct file *file, const char __user *buf,
 	if (length)
 		goto out;
 
+	/* No partial writes. */
+	length = -EINVAL;
+	if (*ppos != 0)
+		goto out;
+
+	length = -EFBIG;
+	if (count > 64 * 1024 * 1024)
+		goto out;
+
+	length = -ENOMEM;
 	data = vmalloc(count);
-	if (!data) {
-		length = -ENOMEM;
+	if (!data)
 		goto out;
-	}
-	if (copy_from_user(data, buf, count) != 0) {
-		length = -EFAULT;
+
+	length = -EFAULT;
+	if (copy_from_user(data, buf, count) != 0)
 		goto out;
-	}
 
 	length = security_load_policy(fsi->state, data, count);
 	if (length) {
@@ -592,7 +579,6 @@ out1:
 		"policy loaded auid=%u ses=%u",
 		from_kuid(&init_user_ns, audit_get_loginuid(current)),
 		audit_get_sessionid(current));
-
 out:
 	mutex_unlock(&fsi->mutex);
 	vfree(data);
@@ -2105,12 +2091,6 @@ static int __init init_sel_fs(void)
 					  sizeof(NULL_FILE_NAME)-1);
 	int err;
 
-// [ SEC_SELINUX_PORTING_COMMON
-#ifdef CONFIG_ALWAYS_ENFORCE
-	selinux_enabled = 1;
-#endif
-// ] SEC_SELINUX_PORTING_COMMON
-
 	if (!selinux_enabled)
 		return 0;
 
@@ -2147,6 +2127,7 @@ __initcall(init_sel_fs);
 void exit_sel_fs(void)
 {
 	sysfs_remove_mount_point(fs_kobj, "selinux");
+	dput(selinux_null.dentry);
 	kern_unmount(selinuxfs_mount);
 	unregister_filesystem(&sel_fs_type);
 }
